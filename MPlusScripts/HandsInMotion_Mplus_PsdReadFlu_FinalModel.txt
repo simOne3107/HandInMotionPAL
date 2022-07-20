@@ -1,0 +1,40 @@
+TITLE: Pofflish_PsdFlu_Model3.3;
+
+DATA: 
+File is ;
+	
+
+VARIABLE:
+	NAMES are id age wd_acc wd_fl pswrd_fl
+	pd ran poff;
+	
+	Usevariables are pswrd_fl 
+	pd ran 
+	pal;
+	
+!	Idvariable is id;
+	
+	Missing = all(9999);
+
+MODEL:
+	pswrd_fl on pd;
+	pswrd_fl on ran;
+!	pswrd_fl on pal;
+!	pd on pal;
+	ran on pal;
+	
+MODEL INDIRECT:
+
+	pswrd_fl ind ran pal;
+	
+
+Analysis:
+    ESTIMATOR IS ML;
+    ITERATIONS = 1000;
+    CONVERGENCE = 0.00005;
+    BOOTSTRAP = 2000;
+
+Output:
+    samp stdyx tech1 
+    cinterval(BCBOOTSTRAP) 
+    mod(3.841);
