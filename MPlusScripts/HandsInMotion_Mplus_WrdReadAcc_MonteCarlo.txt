@@ -1,0 +1,26 @@
+TITLE:	Pofflish Monte Carlo Simulation of Model 1.3 Word Read Accuracy
+MONTECARLO:			
+		NAMES = wd_acc pal pd ran; !Names of variables.
+		NOBSERVATIONS = 76; !Actual number of participants.
+		NREPS = 1000; !Number of repetitions (should be atleast 500 for stability of estimates).
+		SEED = 53487; !use a start point so the same simulation can be run.
+!		SAVE = Poff_sim_Mod1.3_wrdacc.dat; !Save the simulation data.
+MODEL POPULATION:
+		[pal@0 pd@-.029 ran@.019 ];!Means of IVs
+		pal@.98 pd@1.00 ran@.99;!Variances of IVs
+		wd_acc on pd*.325 ran*-.436 pal*.201;!Path estimates
+     	 	ran on pal*-.390;
+     	 	[wd_acc*.011 ran*.019 ];!Means of DVs
+     	 	wd_acc*.94 ran*.99;!Variances of DVs
+
+MODEL:
+
+		wd_acc on pd*.325 ran*-.436 pal*.201;!Path estimates
+     	 	ran on pal*-.390;
+		[wd_acc*.011 ran*.019 ];!Means of DVs
+     	 	wd_acc*.94 ran*.99;!Variances of DVs
+
+ANALYSIS: type = general;
+    	estimator = ml;
+    	
+OUTPUT:	TECH9;
