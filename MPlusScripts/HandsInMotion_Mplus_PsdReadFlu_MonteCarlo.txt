@@ -1,0 +1,26 @@
+TITLE:	Pofflish Monte Carlo Simulation of Model 3.3 Pseudoword Read Fluency
+MONTECARLO:			
+		NAMES = pwd_flu pal pd ran; !Names of variables.
+		NOBSERVATIONS = 76; !Actual number of participants.
+		NREPS = 1000; !Number of repetitions (should be atleast 500 for stability of estimates).
+		SEED = 53487; !use a start point so the same simulation can be run.
+!		SAVE = ; !Save the simulation data.
+MODEL POPULATION:
+		[pal@0 pd@-.029 ran@.019 ];!Means of IVs
+		pal@.99 pd@1.00 ran@.99;!Variances of IVs
+		pwd_flu on pd*.307 ran*-.600;!Path estimates
+     	 	ran on pal*-.390;
+     	 	[pwd_flu*-.009 ran*.019 ];!Means of DVs
+     	 	pwd_flu*.92 ran*.99;!Variances of DVs
+
+MODEL:
+		pwd_flu on pd*.307 ran*-.600;!Path estimates
+     	 	ran on pal*-.390;
+     	 	[pwd_flu*-.009 ran*.019 ];!Means of DVs
+     	 	pwd_flu*.92 ran*.99;!Variances of DVs
+
+
+ANALYSIS: type = general;
+    	estimator = ml;
+    	
+OUTPUT:	TECH9;
