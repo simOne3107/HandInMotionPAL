@@ -1,0 +1,32 @@
+TITLE: PofflishCFA_FactorScores
+
+DATA: 
+File is ;
+	
+
+VARIABLE:
+	NAMES are id age wd_acc wd_fl pswrd_fl
+	ran_lt ran_dg pd ran pal;
+	
+	Usevariables are wd_acc wd_fl pswrd_fl;
+	
+	Idvariable is id;
+	
+	Missing = all(9999);
+
+MODEL:
+
+	read by wd_acc wd_fl pswrd_fl;
+
+Analysis:
+    ESTIMATOR IS ML;
+    ITERATIONS = 1000;
+    CONVERGENCE = 0.00005;
+
+Output:
+    samp stdyx tech1 tech4 mod(3.841)fsdeterminacy;
+    
+Savedata:
+    File is ;
+    Format is free;
+    Save fscores;
