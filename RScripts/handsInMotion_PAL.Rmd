@@ -1,0 +1,1256 @@
+---
+title: "Hands in motion - PAL study"
+author: "SLC, CRD, MWJ"
+date: "20/07/2022"
+output:
+  rmdformats::downcute:
+    code_folding: show
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    number_sections: true
+    fontfamily: mathpazo
+    geometry: top=1cm, right=1cm,bottom=1cm,left=1cm
+    spacing: double
+    df_print: kable
+    classoption: landscape
+pkgdown:
+  as_is: true
+---
+
+<style type="text/css">
+
+h1.title {
+  font-size: 40px;
+  color: Black;
+  font-weight: bold;
+  text-align: center;
+}
+h4.author { /*  */
+    font-size: 28px;
+  font-family: "Times New Roman", Times, serif;
+  color: Black;
+  font-weight: bold;
+  text-align: center;
+}
+h4.date { /*  */
+  font-size: 28px;
+  font-family: "Times New Roman", Times, serif;
+  color: Black;
+  font-weight: bold;
+  text-align: center;
+}
+</style>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, tidy = TRUE, message = FALSE)
+```
+
+
+```{r, include=FALSE}
+library(tidyverse)
+library(simr)
+library(Hmisc)
+library(jtools)
+library(ggthemes)
+library(kableExtra)
+library(afex)
+library(ggsci)
+library(lme4)
+library(lmerTest)
+library(DT)
+library(psycho)
+library(gridExtra)
+library(ggpubr)
+library(ggstatsplot)
+library(knitr)
+library(effsize)
+library(rmdformats)
+library(outliers)
+library(vtree)
+library(mousetrap)
+library(pastecs)
+```
+
+
+
+
+```{r include = FALSE}
+library(readr)
+library(nloptr)
+library(ggplot2)
+
+
+table.glmer.logit.kable <- function(x,file=""){
+  coefs=coef(summary(x))
+  coefs <- cbind(coefs, coefs[,1])
+  coefs[,1] <- round(coefs[,1],digits=2)
+  coefs[,2] <- round(coefs[,2],digits=2)
+  coefs[,4] <- round(coefs[,4],digits=3)
+  coefs[,5] <- round(exp(as.numeric(coefs[,5])),digits=2)
+  coefs<-coefs[,-3]
+  colnames(coefs) <- c("Coef (\u03b2)","SE(\u03b2)","p","OR (exp(\u03b2))")
+  kable(coefs)
+}
+
+library(readr)
+library(nloptr)
+library(ggplot2)
+
+table.lmer.ttop.kable <- function(x,file=""){
+  require(lme4)
+  require(Hmisc)
+  fixedeffs=as.data.frame(fixef(x))
+  temp <- as.data.frame(confint(x, method="Wald"))
+  fixedeffs[c(2,3)] <- subset(temp, !is.na(temp[,2]))
+  # extract coefficients
+  coefs <- data.frame(coef(summary(x)))
+  # use normal distribution to approximate p-value
+  fixedeffs[c(4)] <- 2 * (1 - pnorm(abs(coefs$t.value)))
+  fixedeffs[,1] <- round(fixedeffs[,1],digits=3)
+  fixedeffs[,2] <- round(fixedeffs[,2],digits=3)
+  fixedeffs[,3] <- round(fixedeffs[,3],digits=3)
+  fixedeffs[,4] <- round(fixedeffs[,4],digits=3)
+  fixedeffs[1,c(4)]="-"
+  colnames(fixedeffs) <- c("Coef (\u03b2)","Lower (\u03b2)","Upper (\u03b2)","p")
+  kable(fixedeffs)
+}
+```
+
+
+
+```{r}
+HandsInMotionMainTaskFiltered <- read.csv("~/HandsInMotion_Recognition_Behavioural.csv") # ~ INSERT_HOME_DIRECTORY
+
+HandsInMotionMainFiltered <- HandsInMotionMainTaskFiltered %>% 
+  mutate(id_no = ifelse(id_no == 10083, 183, id_no)) # incorrectly entered ppt number
+```
+
+
+```{r}
+HandsInMotionPPTs <- HandsInMotionMainFiltered %>% 
+  dplyr::select(id_no) %>% 
+  distinct() %>% 
+  arrange(id_no)
+```
+
+
+# **Demographic information** {.tabset .tabset-pills}
+
+
+```{r}
+HandsInMotionBackgroundTestsFile <- read.csv("~/HandsInMotion_BackgroundTests.csv") # ~ INSERT_HOME_DIRECTORY
+```
+
+```{r}
+HandsInMotionBackgroundTests <- HandsInMotionBackgroundTestsFile %>% 
+  mutate(WRATWordR_MeanScore = WordRAcc_totalScore/70,
+         WordRF_meanScore_all = WordRF_totalScore_all/144,
+         PseudoWordRF_meanScore_all = PseudoWordRF_totalScore_all/144,
+         RANcompositeDur = RANDigitsDurTotal + RANLettersDurTotal) %>% 
+  mutate(WRATWordR_totalScore_Z = scale(WordRAcc_totalScore, center = TRUE, scale = TRUE),
+         WordRF_totalScore_Z = scale(WordRF_totalScore_all, center = TRUE, scale = TRUE),
+         PseudoWordRF_totalScore_Z = scale(PseudoWordRF_totalScore_all, center = TRUE, scale = TRUE),
+         PD_Z = scale(PD_TotalScore, center = TRUE, scale = TRUE),
+         RANcompositeDur_Z = scale(RANcompositeDur, center = TRUE, scale = TRUE),
+         compositeAll = WordRF_totalScore_all + PseudoWordRF_totalScore_all + WordRAcc_totalScore,
+         medianAll = median(compositeAll),
+         medianAllLabel = ifelse(compositeAll >= medianAll,"Typical Reader", "Poorer Reader"))
+```
+
+
+
+## **Gender**
+
+
+
+```{r fig.align="center", out.width = '100%', out.extra='style="background-color: #313436; padding:6px; display: inline-block;"'}
+vtree(HandsInMotionBackgroundTests, "Gender",
+      horiz= FALSE,
+      plain = TRUE,
+      labelvar = c(Gender = "Gender"))
+```
+
+
+## **Age** {.tabset .tabset-pills}
+
+
+### **Descriptive Statistics** {.tabset .tabset-pills}
+
+
+#### **Overall**
+
+
+```{r}
+psych::describe(HandsInMotionBackgroundTests$age)
+```
+
+
+
+# {-}
+
+
+
+# **PAL recognition Task** {.tabset .tabset-pills}
+
+
+```{r}
+HandsInMotionFS <- read.csv("~/HandsInMotion_FactorScore.csv") # ~ INSERT_HOME_DIRECTORY
+```
+
+
+```{r}
+HandsInMotionMainBackTests <- inner_join(HandsInMotionMainFiltered, HandsInMotionBackgroundTests, by = "id_no") %>% 
+  mutate(ReadingGroup = ifelse(medianAllLabel == "Typical Reader", 0,1)) %>% 
+  rename(participant_id = Participant.Private.ID) %>% 
+  inner_join(., HandsInMotionFS, by = "id_no")
+```
+
+
+
+## **Accuracy** {.tabset .tabset-pills}
+
+
+
+```{r}
+HandsInMotionMainGeneralSummaryPPT <- HandsInMotionMainBackTests %>% 
+  group_by(Age_Months, id_no, medianAllLabel,compositeAll, ReadingGroup) %>% 
+  summarise(TwoChoiceTotal = sum(Accuracy),
+            TwoChoiceMean = TwoChoiceTotal/36,
+            TwoChoiceMeanRT = mean(RT))
+```
+
+```{r}
+psych::describe(HandsInMotionMainGeneralSummaryPPT$TwoChoiceTotal)
+```
+
+
+```{r}
+psych::describe(HandsInMotionMainGeneralSummaryPPT$TwoChoiceMean)
+```
+
+
+
+### **Recognition Accuracy Linear Models** {.tabset .tabset-pills}
+
+```{r}
+HandsInMotion_lm_df <- HandsInMotionMainBackTests 
+
+HandsInMotion_lm_df$id_no <- as.factor(HandsInMotion_lm_df$id_no) 
+HandsInMotion_lm_df$target_shape <- as.factor(HandsInMotion_lm_df$target_shape)
+
+HandsInMotion_lm_df$cAge_Months <- scale(HandsInMotion_lm_df$Age_Months, center = TRUE, scale = FALSE)
+```
+
+
+#### **Model 1: Latent variable (WRAT + WRF + PWRF)**
+
+```{r}
+HandsInMotionModelAcc1 <- glmer(Accuracy ~ 1 + read_fs +
+                             (1 | target_shape) +
+                             (1 | id_no), 
+                           data = HandsInMotion_lm_df, 
+                           family = binomial,
+                           control=glmerControl(optimizer="nloptwrap",
+                                                calc.derivs = FALSE, 
+                                                optCtrl=list(maxfun=40000)))
+```
+
+```{r}
+summary(HandsInMotionModelAcc1)
+```
+
+```{r, results='asis'}
+table.glmer.logit.kable(HandsInMotionModelAcc1)
+```
+
+
+
+- **Bootstrapped confidence intervals**
+
+```{r, eval = TRUE}
+confint.merMod(HandsInMotionModelAcc1, parm = "beta_", method = "boot", nsim=1000)
+```
+
+
+
+#### **Model 2: Latent variable (WRAT + WRF + PWRF + Age as a covariate)**
+
+```{r}
+HandsInMotionModelAcc2 <- glmer(Accuracy ~ 1 + cAge_Months + read_fs +
+                             (1 | target_shape)+
+                             (1 | id_no), 
+                           data = HandsInMotion_lm_df, 
+                           family = binomial,
+                           control=glmerControl(optimizer="nloptwrap",
+                                                calc.derivs = FALSE, 
+                                                optCtrl=list(maxfun=40000)))
+```
+
+```{r}
+summary(HandsInMotionModelAcc2)
+```
+
+```{r, results='asis'}
+table.glmer.logit.kable(HandsInMotionModelAcc2)
+```
+
+
+
+
+
+
+## **Reaction Time** {.tabset .tabset-pills}
+
+
+```{r}
+HandsInMotionMainBackTests_RT <- HandsInMotionMainBackTests %>% 
+  filter(Accuracy == 1)
+```
+
+```{r}
+psych::describe(HandsInMotionMainBackTests_RT$RT)
+```
+
+
+
+
+### **Recognition Reaction Time Linear Models** {.tabset .tabset-pills}
+
+
+```{r}
+HandsInMotion_lm_RT_df <- HandsInMotionMainBackTests_RT
+
+HandsInMotion_lm_RT_df$id_no <- as.factor(HandsInMotion_lm_RT_df$id_no) 
+HandsInMotion_lm_RT_df$target_shape <- as.factor(HandsInMotion_lm_RT_df$target_shape)
+
+HandsInMotion_lm_RT_df$logRT <- log(HandsInMotion_lm_RT_df$RT)
+
+HandsInMotion_lm_RT_df$cAge_Months <- scale(HandsInMotion_lm_RT_df$Age_Months, center = TRUE, scale = FALSE)
+```
+
+
+#### **Model 1: Latent variable (WRAT + WRF + PWRF)**
+
+
+
+```{r}
+HandsInMotionModelRT1 <- lmer(logRT ~ 1 + read_fs +
+                             (1 | target_shape)+
+                             (1 | id_no), 
+                           data = HandsInMotion_lm_RT_df, 
+                           control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE, optCtrl = list(maxfun = 20000)))
+```
+
+```{r}
+summary(HandsInMotionModelRT1)
+```
+
+
+```{r results='asis'}
+table.lmer.ttop.kable(HandsInMotionModelRT1)
+```
+
+
+
+#- **Bootstrapped confidence intervals**
+
+```{r, eval = TRUE}
+confint.merMod(HandsInMotionModelRT1, parm = "beta_", method = "boot", nsim=1000)
+```
+
+
+
+
+
+
+#### **Model 2: Latent variable (WRAT + WRF + PWRF + Age as a covariate)**
+
+
+
+```{r}
+HandsInMotionModelRT2 <- lmer(logRT ~ 1 + cAge_Months + read_fs +
+                             (1 | target_shape)+
+                             (1 | id_no), 
+                           data = HandsInMotion_lm_RT_df, 
+                           control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE, optCtrl = list(maxfun = 20000)))
+```
+
+```{r}
+summary(HandsInMotionModelRT2)
+```
+
+
+```{r results='asis'}
+table.lmer.ttop.kable(HandsInMotionModelRT2)
+```
+
+
+
+
+# {-}
+
+
+
+
+# **Mousetracking Data** {.tabset .tabset-pills}
+
+
+## **Filtering steps** {.tabset .tabset-pills}
+
+
+```{r}
+HandsInMotionMousetrackingFile <- read.csv("~/HandsInMotion_Mousetracking.csv") # ~ INSERT_HOME_DIRECTORY
+```
+
+
+
+```{r}
+id_Nos <- HandsInMotionMainBackTests %>% 
+  dplyr::select(participant_id, id_no,Age_Months, medianAllLabel) %>% 
+  distinct()
+```
+
+
+```{r}
+HandsInMotionMousetrackingFile_idNo <- inner_join(HandsInMotionMousetrackingFile, id_Nos, by = "participant_id")
+```
+
+
+```{r}
+HandsInMotionMousetrackingFile_idNo_filtered <- HandsInMotionMousetrackingFile_idNo %>% 
+  dplyr::filter(type == "mouse", screen_index == 10) %>% 
+  dplyr::select(id_no, participant_id,Age_Months,time_stamp, spreadsheet_row,x_normalised,y_normalised,medianAllLabel) %>% 
+  group_by(id_no,participant_id, spreadsheet_row) %>% 
+  mutate(ReadingGroup = medianAllLabel)
+
+HandsInMotionMousetrackingFile_idNo_filtered$x_normalised <- as.numeric(HandsInMotionMousetrackingFile_idNo_filtered$x_normalised)
+HandsInMotionMousetrackingFile_idNo_filtered$y_normalised <- as.numeric(HandsInMotionMousetrackingFile_idNo_filtered$y_normalised)
+```
+
+
+
+```{r}
+behavioural_data_filtered <- HandsInMotionMainBackTests %>% 
+  dplyr::select(id_no:target_shape) %>% 
+  rename(spreadsheet_row = Spreadsheet.Row) %>% 
+  dplyr::select(-RT) %>% 
+  filter(Accuracy == 1) %>% 
+  dplyr::select(id_no,spreadsheet_row,Accuracy,target_shape)
+```
+
+
+
+```{r}
+HandsInMotionMousetrackingBehavioural <- inner_join(behavioural_data_filtered,HandsInMotionMousetrackingFile_idNo_filtered, by = c("id_no", "spreadsheet_row")) %>% 
+  inner_join(., HandsInMotionFS, by = "id_no")
+```
+
+
+```{r}
+gorilla.traj <- HandsInMotionMousetrackingBehavioural
+```
+
+
+
+
+```{r, warning = FALSE}
+HandsInMotion.mt<-mt_import_long(gorilla.traj, xpos_label="x_normalised", ypos_label="y_normalised", timestamps_label="time_stamp",
+                           mt_id_label= c("id_no", "spreadsheet_row"))
+```
+
+
+
+```{r}
+HandsInMotion.mt<-mt_measures(HandsInMotion.mt, use = "trajectories",save_as="measures",
+                        dimensions = c("xpos", "ypos"), timestamps = "timestamps",
+                        verbose = FALSE)
+
+```
+
+
+
+
+
+```{r}
+HandsInMotion.mt <-mt_count(HandsInMotion.mt, save_as = "data")
+```
+
+
+
+```{r}
+HandsInMotion.mt$data$pos_var <- apply(HandsInMotion.mt$trajectories[,,"xpos"],1,var,na.rm=TRUE) + apply(HandsInMotion.mt$trajectories[,,"ypos"],1,var,na.rm=TRUE)
+```
+
+
+
+```{r}
+table(HandsInMotion.mt$data$pos_var==0)
+```
+
+
+```{r}
+HandsInMotion.mt <- mt_subset(HandsInMotion.mt, pos_var>0)
+```
+
+
+
+```{r}
+nrow(HandsInMotion.mt$data)
+nrow(HandsInMotion.mt$measures)
+```
+
+
+
+```{r}
+HandsInMotion.mt <- mt_derivatives(HandsInMotion.mt)
+```
+
+
+
+```{r}
+HandsInMotion.mt <- mt_align_start(HandsInMotion.mt)
+```
+
+
+```{r}
+HandsInMotion.mt <- mt_remap_symmetric(HandsInMotion.mt)
+```
+
+
+
+```{r}
+HandsInMotion.mt <- mt_measures(HandsInMotion.mt)
+```
+
+
+
+```{r, warning = FALSE}
+HandsInMotion.mt <- mt_time_normalize(HandsInMotion.mt)
+```
+
+
+
+```{r}
+HandsInMotion.mt <- mt_measures(HandsInMotion.mt,use="tn_trajectories",save_as="tn_measures")
+```
+
+
+
+```{r, eval = TRUE}
+mt_aggregate(HandsInMotion.mt, use="measures",use_variables=c("MAD", "AD", "AUC"), use2_variables="medianAllLabel", subject_id="id_no")
+```
+
+
+## **Mouse trajectories plot** {.tabset .tabset-pills}
+
+```{r fig.align="center", out.width = '100%', out.extra='style="background-color: #313436; padding:6px; display: inline-block;"'}
+mt_plot_aggregate(HandsInMotion.mt, use="tn_trajectories", x="xpos", y="ypos", linetype="ReadingGroup",subject_id="id_no", points = FALSE, size =1.1) +   
+  xlab("X Position")+
+  ylab("Y Position")+
+  theme_classic()+
+  theme(legend.title=element_blank(), 
+        legend.justification=c(0,.5), 
+        legend.position=c(0.07,.18),
+        legend.text = element_text(size = 10),
+        axis.line = element_line(colour = 'black', size = .8),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12, face = "bold"),
+        legend.key.size = unit(3,"line"),
+        axis.title.x=element_text(angle=0, size=12, vjust=-.5),
+        axis.title.y=element_text(size=12),
+        strip.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        strip.background = element_rect(colour = "black", size = 1.2),
+        plot.title = element_text(lineheight=1, face="bold", size =12),
+        axis.ticks.length.x = unit(.2, "cm"),
+        axis.ticks.length.y = unit(.2, "cm"),
+        axis.ticks.x = element_line(colour = "black", size = 1),
+        axis.ticks.y = element_line(colour = "black", size = 1))
+```
+
+
+
+```{r}
+results <-merge(HandsInMotion.mt$data, HandsInMotion.mt$measures, by="mt_id")
+```
+
+
+
+
+```{r}
+results$id_no <- as.factor(results$id_no)
+
+results$target_shape<- as.factor(results$target_shape)
+
+results$cAge_Months <- scale(results$Age_Months, center = TRUE, scale = FALSE)
+```
+
+
+
+## **Mousetracking measures Linear Models** {.tabset .tabset-pills}
+
+
+###  **MAD** {.tabset .tabset-pills}
+
+
+#### **Model 1: Latent variable (WRAT + WRF + PWRF)** {.tabset .tabset-pills}
+
+
+```{r}
+MAD_model <- lmer(MAD ~ 1 + read_fs +
+                     (1| id_no)+
+                     (1|target_shape),
+                   data =results, control = lmerControl(calc.derivs = FALSE))
+```
+
+```{r}
+summary(MAD_model)
+```
+
+
+
+```{r results='asis'}
+table.lmer.ttop.kable(MAD_model)
+```
+
+
+- **Bootstrapped confidence intervals**
+
+
+```{r, eval = TRUE}
+confint.merMod(MAD_model, parm = "beta_", method = "boot", nsim=1000)
+```
+
+
+
+
+
+
+#### **Model 2: Latent variable (WRF + PWRF + WRAT + Age as a covariate)** {.tabset .tabset-pills}
+
+```{r}
+MAD_model2 <- lmer(MAD ~ 1 + cAge_Months + read_fs +
+                     (1| id_no)+
+                     (1|target_shape),
+                   data =results, control = lmerControl(calc.derivs = FALSE))
+```
+
+```{r}
+summary(MAD_model2)
+```
+
+
+
+```{r results='asis'}
+table.lmer.ttop.kable(MAD_model2)
+```
+
+
+
+
+### **AD** {.tabset .tabset-pills}
+
+
+
+#### **Model 1: Latent variable (WRAT + WRF + PWRF)** {.tabset .tabset-pills}
+
+
+```{r}
+AD_model <- lmer(AD ~ 1 + read_fs +
+                     (1| id_no)+
+                   (1|target_shape),
+                   data =results, control = lmerControl(calc.derivs = FALSE))
+```
+
+
+```{r}
+summary(AD_model)
+```
+
+
+
+```{r results='asis'}
+table.lmer.ttop.kable(AD_model)
+```
+
+
+
+
+- **Bootstrapped confidence intervals**
+
+
+```{r, eval = TRUE}
+confint.merMod(AD_model, parm = "beta_", method = "boot", nsim=1000)
+```
+
+
+
+
+
+#### **Model 2: Latent variable (WRAT + WRF + PWRF + Age as a covariate)** {.tabset .tabset-pills}
+
+
+```{r}
+AD_model2 <- lmer(AD ~ 1 + cAge_Months + read_fs +
+                     (1| id_no)+
+                   (1|target_shape),
+                   data =results, control = lmerControl(calc.derivs = FALSE))
+```
+
+
+```{r}
+summary(AD_model2)
+```
+
+
+
+```{r results='asis'}
+table.lmer.ttop.kable(AD_model2)
+```
+
+
+
+
+### **AUC** {.tabset .tabset-pills}
+
+
+#### **Model 1: Latent variable (WRAT + WRF + PWRF)** {.tabset .tabset-pills}
+
+```{r}
+AUC_model <- lmer(AUC ~ 1 + read_fs +
+                     (1| id_no)+
+                   (1|target_shape),
+                   data =results, control = lmerControl(calc.derivs = FALSE))
+```
+
+
+
+```{r}
+summary(AUC_model)
+```
+
+
+
+```{r results='asis'}
+table.lmer.ttop.kable(AUC_model)
+```
+
+
+
+- **Bootstrapped confidence intervals**
+
+
+```{r, eval = TRUE}
+confint.merMod(AUC_model, parm = "beta_", method = "boot", nsim=1000)
+```
+
+
+
+#### **Model 2: Latent variable (WRAT + WRF + PWRF + Age as a covariate)** {.tabset .tabset-pills}
+
+```{r}
+AUC_model2 <- lmer(AUC ~ 1 + cAge_Months + read_fs +
+                     (1| id_no)+
+                   (1|target_shape),
+                   data =results, control = lmerControl(calc.derivs = FALSE))
+```
+
+
+```{r}
+summary(AUC_model2)
+```
+
+
+
+```{r results='asis'}
+table.lmer.ttop.kable(AUC_model2)
+```
+
+
+
+# {-}
+
+
+
+# **PAL Interspersed recall trials** {.tabset .tabset-pills}
+
+```{r}
+interspersedFile <- read.csv("~/HandsInMotion_InterpersedCuedRecall.csv") # ~ INSERT_HOME_DIRECTORY
+```
+
+
+```{r}
+interspersedDF <- inner_join(interspersedFile, HandsInMotionFS, by = "id_no")
+```
+
+
+## **Interspersed Cued-Recall Trials - Accuracy Linear Models** {.tabset .tabset-pills}
+
+```{r}
+interspersed_lm_DF <- interspersedDF 
+
+interspersed_lm_DF$id_no <- as.factor(interspersed_lm_DF$id_no) 
+interspersed_lm_DF$target_shape <- as.factor(interspersed_lm_DF$target_shape)
+
+interspersed_lm_DF$cAge_Months <- scale(interspersed_lm_DF$Age_Months, center = TRUE, scale = FALSE)
+```
+
+
+
+### **Model 1A: Latent variable (WRAT + WRF + PWRF)** {.tabset .tabset-pills}
+
+
+```{r}
+HandsInMotionInterspersedModelAcc1 <- glmer(accuracy ~ 1 + read_fs +
+                             (1 | target_shape)+
+                             (1 | id_no), 
+                           data = interspersed_lm_DF, 
+                           family = binomial,
+                           control=glmerControl(optimizer="nloptwrap",
+                                                calc.derivs = FALSE, 
+                                                optCtrl=list(maxfun=40000)))
+```
+
+```{r}
+summary(HandsInMotionInterspersedModelAcc1)
+```
+
+```{r, results='asis'}
+table.glmer.logit.kable(HandsInMotionInterspersedModelAcc1)
+```
+
+
+- **Bootstrapped confidence intervals**
+
+
+```{r, eval = TRUE}
+confint.merMod(HandsInMotionInterspersedModelAcc1, parm = "beta_", method = "boot", nsim=1000)
+```
+
+
+
+
+### **Model 2: Latent variable (WRAT + WRF + PWRF + Age as a covariate)** {.tabset .tabset-pills}
+
+
+```{r}
+HandsInMotionInterspersedModelAcc2 <- glmer(accuracy ~ 1+ cAge_Months + read_fs +
+                             (1 | target_shape)+
+                             (1 | id_no), 
+                           data = interspersed_lm_DF, 
+                           family = binomial,
+                           control=glmerControl(optimizer="nloptwrap",
+                                                calc.derivs = FALSE, 
+                                                optCtrl=list(maxfun=40000)))
+```
+
+```{r}
+summary(HandsInMotionInterspersedModelAcc2)
+```
+
+```{r, results='asis'}
+table.glmer.logit.kable(HandsInMotionInterspersedModelAcc2)
+```
+
+
+
+
+
+```{r}
+interspersedSummary <- interspersedDF %>% 
+  group_by(id_no) %>% 
+  summarise(InterspersedTotalScore = sum(accuracy),
+            InterspersedMeanScore = mean(accuracy))
+```
+
+```{r}
+psych::describe(interspersedSummary$InterspersedTotalScore)
+```
+
+
+
+```{r}
+psych::describe(interspersedSummary$InterspersedMeanScore)
+```
+
+
+
+
+# {-}
+
+
+
+# **PAL Separate cued-recall trials** {.tabset .tabset-pills}
+
+
+```{r}
+separateRecallFile <- read.csv("~/HandsInMotion_SeparateCuedRecall.csv") # ~ INSERT_HOME_DIRECTORY
+```
+
+
+```{r}
+separateRecallFile_idNo <- inner_join(separateRecallFile, id_Nos, by = "id_no") %>% 
+  inner_join(., HandsInMotionFS, by = "id_no")
+```
+
+
+
+```{r}
+separateFileFiltered <- separateRecallFile_idNo %>% 
+  filter(response != "NA") %>%
+  mutate(accuracy = as.numeric(accuracy)) %>% 
+  mutate(item = case_when(
+    Trial.Number == 1 & version == "a" ~ "bix",
+    Trial.Number == 2 & version == "a" ~ "fip",
+    Trial.Number == 3 & version == "a" ~ "beb",
+    Trial.Number == 4 & version == "a" ~ "fum",
+    Trial.Number == 5 & version == "a" ~ "gex",
+    Trial.Number == 6 & version == "a" ~ "saf",
+    Trial.Number == 7 & version == "a" ~ "sut",
+    Trial.Number == 8 & version == "a" ~ "dep",
+    Trial.Number == 9 & version == "a" ~ "gop",
+    Trial.Number == 10 & version == "a" ~ "dod",
+    Trial.Number == 11 & version == "a" ~ "pof",
+    Trial.Number == 12 & version == "a" ~ "pag",
+    Trial.Number == 1 & version == "b" ~ "sut",
+    Trial.Number == 2 & version == "b" ~ "dep",
+    Trial.Number == 3 & version == "b" ~ "gop",
+    Trial.Number == 4 & version == "b" ~ "dod",
+    Trial.Number == 5 & version == "b" ~ "pof",
+    Trial.Number == 6 & version == "b" ~ "pag",
+    Trial.Number == 7 & version == "b" ~ "bix",
+    Trial.Number == 8 & version == "b" ~ "fip",
+    Trial.Number == 9 & version == "b" ~ "beb",
+    Trial.Number == 10 & version == "b" ~ "fum",
+    Trial.Number == 11 & version == "b" ~ "gex",
+    Trial.Number == 12 & version == "b" ~ "saf",
+    Trial.Number == 1 & version == "c" ~ "dod",
+    Trial.Number == 2 & version == "c" ~ "pof",
+    Trial.Number == 3 & version == "c" ~ "sut",
+    Trial.Number == 4 & version == "c" ~ "dep",
+    Trial.Number == 5 & version == "c" ~ "pag",
+    Trial.Number == 6 & version == "c" ~ "gop",
+    Trial.Number == 7 & version == "c" ~ "fip",
+    Trial.Number == 8 & version == "c" ~ "saf",
+    Trial.Number == 9 & version == "c" ~ "gex",
+    Trial.Number == 10 & version == "c" ~ "fum",
+    Trial.Number == 11 & version == "c" ~ "beb",
+    Trial.Number == 12 & version == "c" ~ "bix"
+  ))
+
+```
+
+
+
+```{r}
+separateRecallDF <- separateFileFiltered %>% 
+  dplyr::select(id_no, item, accuracy, response, Age_Months, read_fs)
+```
+
+
+
+
+## **Separate Cued-Recall Task - Accuracy Linear Models** {.tabset .tabset-pills}
+
+```{r}
+separateRecall_lm_DF <- separateRecallDF 
+
+separateRecall_lm_DF$id_no <- as.factor(separateRecall_lm_DF$id_no) 
+separateRecall_lm_DF$item <- as.factor(separateRecall_lm_DF$item)
+
+separateRecall_lm_DF$cAge_Months <- scale(separateRecall_lm_DF$Age_Months, center = TRUE, scale = FALSE)
+```
+
+
+
+
+### **Model 1: Latent variable (WRAT + WRF + PWRF)** {.tabset .tabset-pills}
+
+```{r}
+HandsInMotionSeparateModelAcc1 <- glmer(accuracy ~ 1 + read_fs +
+                             (1 | item)+
+                             (1 | id_no), 
+                           data = separateRecall_lm_DF, 
+                           family = binomial,
+                           control=glmerControl(optimizer="nloptwrap",
+                                                calc.derivs = FALSE, 
+                                                optCtrl=list(maxfun=40000)))
+```
+
+```{r}
+summary(HandsInMotionSeparateModelAcc1)
+```
+
+```{r, results='asis'}
+table.glmer.logit.kable(HandsInMotionSeparateModelAcc1)
+```
+
+
+
+
+- **Bootstrapped confidence intervals**
+
+
+```{r, eval = TRUE}
+confint.merMod(HandsInMotionSeparateModelAcc1, parm = "beta_", method = "boot", nsim=1000)
+```
+
+
+
+
+
+
+### **Model 2: Latent variable (WRAT + WRF + PWRF  + Age as a covariate)** {.tabset .tabset-pills}
+
+```{r}
+HandsInMotionSeparateModelAcc2 <- glmer(accuracy ~ 1+ cAge_Months + read_fs +
+                             (1 | item)+
+                             (1 | id_no), 
+                           data = separateRecall_lm_DF, 
+                           family = binomial,
+                           control=glmerControl(optimizer="nloptwrap",
+                                                calc.derivs = FALSE, 
+                                                optCtrl=list(maxfun=40000)))
+```
+
+```{r}
+summary(HandsInMotionSeparateModelAcc2)
+```
+
+```{r, results='asis'}
+table.glmer.logit.kable(HandsInMotionSeparateModelAcc2)
+```
+
+
+
+
+
+
+```{r}
+SeparateSummary <- separateRecallDF %>% 
+  group_by(id_no) %>% 
+  summarise(SepRecallTotalScore = sum(accuracy),
+            SepRecallMeanScore = mean(accuracy))
+```
+
+```{r}
+psych::describe(SeparateSummary$SepRecallTotalScore)
+```
+
+
+```{r}
+psych::describe(SeparateSummary$SepRecallMeanScore)
+```
+
+
+
+# {-}
+
+```{r}
+HandsInMotion3tasks <- HandsInMotionBackgroundTests %>% 
+  left_join(.,HandsInMotionMainGeneralSummaryPPT) %>% 
+  left_join(.,interspersedSummary, by = "id_no") %>% 
+  left_join(.,SeparateSummary, by = "id_no") %>% 
+  group_by(id_no) %>% 
+  mutate(CompositeHandsInMotionTotal = sum(TwoChoiceTotal, InterspersedTotalScore, SepRecallTotalScore, na.rm = TRUE),
+         CompositeHandsInMotionMean = CompositeHandsInMotionTotal/60) %>% 
+  ungroup() %>% 
+  filter(!id_no %in% c(99,139,115,3)) %>% # these ppts had no cued-recall data in the separate task
+  mutate (CompositeHandsInMotionTotal_Z = scale(CompositeHandsInMotionTotal, center = TRUE, scale = TRUE)) %>% 
+  left_join(., HandsInMotionFS, by = "id_no")
+```
+
+
+
+```{r}
+psych::describe(HandsInMotion3tasks$CompositeHandsInMotionMean)
+```
+
+
+# **Accuracy across all PAL tasks**
+
+
+## **Linear Model**
+
+
+```{r}
+HandsInMotion3tasksgeneral <- HandsInMotion3tasks %>% 
+  dplyr::select(id_no, Age_Months, CompositeHandsInMotionTotal,read_fs)
+
+HandsInMotion3tasksgeneral$cAge_Months <- scale(as.numeric(HandsInMotion3tasksgeneral$Age_Months), center = TRUE, scale = FALSE)
+```
+
+
+
+
+### **Accuracy**
+
+```{r}
+compositeHandsInMotionModel1 <- lm(CompositeHandsInMotionTotal ~ read_fs, data = HandsInMotion3tasksgeneral)
+```
+
+
+```{r}
+summary(compositeHandsInMotionModel1)
+```
+
+
+
+
+
+
+### **Accuracy (+ Age as a co-variate)**
+
+```{r}
+compositeHandsInMotionModel2 <- lm(CompositeHandsInMotionTotal ~ cAge_Months + read_fs, data = HandsInMotion3tasksgeneral)
+```
+
+
+```{r}
+summary(compositeHandsInMotionModel2)
+```
+
+
+
+
+
+
+
+# {-}
+
+
+
+# **Background Tests** {.tabset .tabset-pills}
+
+```{r}
+HandsInMotionbackgroundWRIT <- read.csv("~/HandsInMotion_WRIT.csv") # ~ INSERT_HOME_DIRECTORY
+```
+
+
+
+## **WRAT Word Reading Acccuracy** {.tabset .tabset-pills}
+
+### **Descriptive statistics**
+
+
+#### **Overall**
+
+
+```{r}
+psych::describe(HandsInMotionbackground$WordRAcc_totalScore)
+```
+
+
+
+
+
+## **Word Reading Fluency** {.tabset .tabset-pills}
+
+### **Descriptive statistics**
+
+
+
+```{r}
+psych::describe(HandsInMotionbackground$WordRF_totalScore_all)
+```
+
+
+
+
+## **Pseudoword Reading Fluency** {.tabset .tabset-pills}
+
+### **Descriptive statistics**
+
+
+```{r}
+psych::describe(HandsInMotionbackground$PseudoWordRF_totalScore_all)
+```
+
+
+
+
+## **Phoneme Deletion** {.tabset .tabset-pills}
+
+### **Descriptive statistics**
+
+
+
+```{r}
+psych::describe(HandsInMotionbackground$PD_TotalScore)
+```
+
+
+
+
+## **RAN digits and letters** {.tabset .tabset-pills}
+
+### **Descriptive statistics**
+
+
+```{r}
+psych::describe(HandsInMotionbackground$RANcompositeDur)
+```
+
+
+
+
+## **Nonverbal IQ** {.tabset .tabset-pills}
+
+### **Descriptive statistics**
+
+
+
+```{r}
+psych::describe(HandsInMotionbackgroundWRIT$WRIT_stdz)
+```
+
+
+
+# {-}
+
+
+# **Correlation Analyses** {.tabset .tabset-pills}
+
+
+```{r}
+HandsInMotion_correlationsFile <- HandsInMotion3tasks %>% 
+  dplyr::select(id_no, CompositeHandsInMotionMean, WRATWordR_MeanScore,WordRF_meanScore_all,PseudoWordRF_meanScore_all, RANcompositeDur,PD_TotalScore) %>% 
+  mutate(PDmean = PD_TotalScore/40,
+         RANcompositeDurMean = RANcompositeDur/4) %>% 
+  dplyr::select(-c(PD_TotalScore,RANcompositeDur, id_no))
+```
+
+
+
+```{r, warning= FALSE}
+corr_df <- ggcorrmat(HandsInMotion_correlationsFile, 
+          type = "pearson",
+          p.adjust.method = "holm",
+          cor.vars.names = c("Paired Associate Learning", "Word Reading Accuracy", "Word Reading Fluency", "Pseudoword Reading Fluency", "Phoneme Awareness", "Rapid Automatized Naming"),
+          ggtheme = ggplot2::theme_classic(),
+          matrix.type = "upper",
+          ggcorrplot.args = list(outline.color = "black", hc.order = TRUE),
+          colors = NULL, ## turning off manual specification of colors
+          palette = "blue_grey_material",
+          package = "ggsci", 
+          #title = "#####"
+          output = "matrix"
+)
+```
+
+
+```{r}
+corr_df
+```
+
+
+
+```{r}
+corr_df$p.value <- round(corr_df$p.value,3)
+```
+
+# {-}
+
+
